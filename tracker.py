@@ -1,65 +1,114 @@
-from deep_sort.deep_sort.tracker import Tracker as DeepSortTracker
-from deep_sort.tools import generate_detections as gdet
-from deep_sort.deep_sort import nn_matching
-from deep_sort.deep_sort.detection import Detection
 import numpy as np
-
+import cv2
+from collections import deque
 
 class Tracker:
-    tracker = None
-    encoder = None
-    tracks = None
-
     def __init__(self):
-        max_cosine_distance = 0.4
-        nn_budget = None
-
-        encoder_model_filename = 'model_data/mars-small128.pb'
-
-        metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = DeepSortTracker(metric)
-        self.encoder = gdet.create_box_encoder(encoder_model_filename, batch_size=1)
+        self.tracks = []
+        self.next_id = 0
+        self.max_disappeared = 30
+        self.max_distance = 50
 
     def update(self, frame, detections):
-
         if len(detections) == 0:
-            self.tracker.predict()
-            self.tracker.update([])  
-            self.update_tracks()
+            # Se não há detecções, marcar todos os tracks como desaparecidos
+            for track in self.tracks:
+                track['disappeared'] += 1
             return
 
-        bboxes = np.asarray([d[:-1] for d in detections])
-        bboxes[:, 2:] = bboxes[:, 2:] - bboxes[:, 0:2]
-        scores = [d[-1] for d in detections]
+        # Converter detecções para formato [x1, y1, x2, y2, score]
+        bboxes = np.array([d[:4] for d in detections])
+        scores = np.array([d[4] for d in detections])
 
-        features = self.encoder(frame, bboxes)
+        # Se não há tracks, criar novos para todas as detecções
+        if len(self.tracks) == 0:
+            for bbox, score in zip(bboxes, scores):
+                self.tracks.append({
+                    'id': self.next_id,
+                    'bbox': bbox,
+                    'score': score,
+                    'disappeared': 0,
+                    'centroid': self._get_centroid(bbox)
+                })
+                self.next_id += 1
+            return
 
-        dets = []
-        for bbox_id, bbox in enumerate(bboxes):
-            dets.append(Detection(bbox, scores[bbox_id], features[bbox_id]))
+        # Calcular centroides das detecções atuais
+        centroids = np.array([self._get_centroid(bbox) for bbox in bboxes])
+        
+        # Calcular centroides dos tracks existentes
+        track_centroids = np.array([track['centroid'] for track in self.tracks])
+        
+        # Calcular distâncias entre centroides
+        distances = np.zeros((len(self.tracks), len(centroids)))
+        for i, track_centroid in enumerate(track_centroids):
+            for j, centroid in enumerate(centroids):
+                distances[i, j] = np.linalg.norm(track_centroid - centroid)
 
-        self.tracker.predict()
-        self.tracker.update(dets)
-        self.update_tracks()
+        # Associação simples baseada em distância mínima
+        used_tracks = set()
+        used_detections = set()
+        
+        # Associar detecções aos tracks mais próximos
+        for _ in range(min(len(self.tracks), len(centroids))):
+            min_dist = float('inf')
+            track_idx = -1
+            detection_idx = -1
+            
+            for i in range(len(self.tracks)):
+                if i in used_tracks:
+                    continue
+                for j in range(len(centroids)):
+                    if j in used_detections:
+                        continue
+                    if distances[i, j] < min_dist and distances[i, j] < self.max_distance:
+                        min_dist = distances[i, j]
+                        track_idx = i
+                        detection_idx = j
+            
+            if track_idx != -1 and detection_idx != -1:
+                # Atualizar track
+                self.tracks[track_idx]['bbox'] = bboxes[detection_idx]
+                self.tracks[track_idx]['score'] = scores[detection_idx]
+                self.tracks[track_idx]['centroid'] = centroids[detection_idx]
+                self.tracks[track_idx]['disappeared'] = 0
+                used_tracks.add(track_idx)
+                used_detections.add(detection_idx)
 
-    def update_tracks(self):
-        tracks = []
-        for track in self.tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
-                continue
-            bbox = track.to_tlbr()
+        # Marcar tracks não associados como desaparecidos
+        for i in range(len(self.tracks)):
+            if i not in used_tracks:
+                self.tracks[i]['disappeared'] += 1
 
-            id = track.track_id
+        # Criar novos tracks para detecções não associadas
+        for j in range(len(centroids)):
+            if j not in used_detections:
+                self.tracks.append({
+                    'id': self.next_id,
+                    'bbox': bboxes[j],
+                    'score': scores[j],
+                    'disappeared': 0,
+                    'centroid': centroids[j]
+                })
+                self.next_id += 1
 
-            tracks.append(Track(id, bbox))
+        # Remover tracks que desapareceram por muito tempo
+        self.tracks = [track for track in self.tracks if track['disappeared'] < self.max_disappeared]
 
-        self.tracks = tracks
+    def _get_centroid(self, bbox):
+        x1, y1, x2, y2 = bbox
+        return np.array([(x1 + x2) / 2, (y1 + y2) / 2])
+
+    @property
+    def tracks(self):
+        return self._tracks
+
+    @tracks.setter
+    def tracks(self, value):
+        self._tracks = value
 
 
 class Track:
-    track_id = None
-    bbox = None
-
     def __init__(self, id, bbox):
         self.track_id = id
         self.bbox = bbox

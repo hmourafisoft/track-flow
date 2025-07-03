@@ -7,7 +7,7 @@ from ultralytics import YOLO
 from tracker import Tracker
 
 
-video_path = os.path.join('.', 'data', 'people.mp4')
+video_path = os.path.join('.', 'people.mp4')
 video_out_path = os.path.join('.', 'out.mp4')
 
 cap = cv2.VideoCapture(video_path)
@@ -42,11 +42,12 @@ while ret:
         tracker.update(frame, detections)
 
         for track in tracker.tracks:
-            bbox = track.bbox
+            bbox = track['bbox']
             x1, y1, x2, y2 = bbox
-            track_id = track.track_id
+            track_id = track['id']
 
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (colors[track_id % len(colors)]), 3)
+            cv2.putText(frame, f"ID: {track_id}", (int(x1), int(y1)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (colors[track_id % len(colors)]), 2)
 
     cap_out.write(frame)
     ret, frame = cap.read()
