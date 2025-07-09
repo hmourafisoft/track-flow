@@ -1,0 +1,47 @@
+{
+  "cameras": {
+    "camera_1": {
+      "name": "Câmera Principal",
+      "type": "dahua",
+      "ip": "192.168.15.88",
+      "port": 554,
+      "username": "admin",
+      "password": "sophia2011",
+      "stream_path": "cam/realmonitor?channel=1&subtype=0",
+      "enabled": true,
+      "description": "Câmera principal da entrada"
+    },
+    "camera_2": {
+      "name": "Câmera Secundária",
+      "type": "hikvision",
+      "ip": "192.168.15.89",
+      "port": 554,
+      "username": "admin",
+      "password": "password123",
+      "stream_path": "Streaming/Channels/101",
+      "enabled": false,
+      "description": "Câmera secundária (desabilitada)"
+    },
+    "camera_3": {
+      "name": "Câmera USB Local",
+      "type": "usb",
+      "source": 0,
+      "enabled": true,
+      "description": "Câmera USB para testes"
+    }
+  },
+  "default_settings": {
+    "frame_skip": 1,
+    "confidence": 0.5,
+    "max_frames": 0,
+    "show_display": true,
+    "output_format": "avi",
+    "save_video": true,
+    "save_csv": true
+  },
+  "network_settings": {
+    "timeout": 10,
+    "reconnect_attempts": 3,
+    "buffer_size": 1
+  }
+} 

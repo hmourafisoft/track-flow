@@ -1,0 +1,2 @@
+Camera_ID,Camera_Name,Frame,Timestamp,Track_ID,X1,Y1,X2,Y2,Center_X,Center_Y,Zone,Zone_Right_Dur,Zone_Left_Dur,Crossed_Line,Confidence,Motion_Detected
+camera_1,Câmera Principal,204,10.2,2,1138.7876973073096,160.738490595581,1365.2504531435866,443.54530498747135,1252,386,Fora das Zonas,0,0,False,0.8,True
